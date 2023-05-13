@@ -6,13 +6,9 @@ mod erc721 {
     use starknet::get_caller_address;
     use starknet::contract_address_const;
     use starknet::ContractAddress;
-    // contract address type to felt type
-    use starknet::ContractAddressIntoFelt252;
     // felt to int. eg, 1.into()
     use traits::Into;
-    // 2 lines below can make is_zero() of ContractAddress usable to assert if the address is 0
     use zeroable::Zeroable;
-    use starknet::ContractAddressZeroable;
 
     struct Storage {
         name: felt252,
@@ -46,8 +42,7 @@ mod erc721 {
 
     
     fn _set_approval_for_all(owner: ContractAddress, operator: ContractAddress, approved: bool) {
-        // ContractAddress equation is not supported so into() is used here
-        assert(owner.into() != operator.into(), 'ERC721: approve to caller');
+        assert(owner != operator, 'ERC721: approve to caller');
         operator_approvals::write((owner, operator), approved);
         ApprovalForAll(owner, operator, approved);
     }
@@ -57,9 +52,9 @@ mod erc721 {
         let owner = _owner_of(token_id);
         // Unlike Solidity, require is not supported, only assert can be used
         // The max length of error msg is 31 or there's an error
-        assert(to.into() != owner.into(), 'Approval to current owner');
+        assert(to != owner, 'Approval to current owner');
         // || is not supported currently so we use | here
-        assert(get_caller_address().into() == owner.into() | is_approved_for_all(owner, get_caller_address()), 'Not token owner');
+        assert(get_caller_address() == owner | is_approved_for_all(owner, get_caller_address()), 'Not token owner');
         _approve(to, token_id);
     }
 
@@ -71,7 +66,7 @@ mod erc721 {
 
     #[external]
     fn transfer_from(from: ContractAddress, to: ContractAddress, token_id: u256) {
-        assert(_is_approved_or_owner(from, token_id), 'Caller is not owner or appvored');
+        assert(_is_approved_or_owner(get_caller_address(), token_id), 'Caller is not owner or appvored');
         _transfer(from, to, token_id);
     }
 
@@ -123,18 +118,18 @@ mod erc721 {
     fn _is_approved_or_owner(spender: ContractAddress, token_id: u256) -> bool {
         let owner = owners::read(token_id);
         // || is not supported currently so we use | here
-        spender.into() == owner.into() 
+        spender == owner
             | is_approved_for_all(owner, spender) 
-            | get_approved(token_id).into() == spender.into()
+            | get_approved(token_id) == spender
     }
 
     
     fn _transfer(from: ContractAddress, to: ContractAddress, token_id: u256) {
-        assert(from.into() == owner_of(token_id).into(), 'Transfer from incorrect owner');
+        assert(from == owner_of(token_id), 'Transfer from incorrect owner');
         assert(!to.is_zero(), 'ERC721: transfer to 0');
 
         _beforeTokenTransfer(from, to, token_id, 1.into());
-        assert(from.into() == owner_of(token_id).into(), 'Transfer from incorrect owner');
+        assert(from == owner_of(token_id), 'Transfer from incorrect owner');
 
         token_approvals::write(token_id, contract_address_const::<0>());
 
@@ -182,8 +177,6 @@ mod erc721 {
     #[view]
     fn owner_of(token_id: u256) -> ContractAddress {
         let owner = _owner_of(token_id);
-        // both are OK!
-        // assert(owner.into() != contract_address_const::<0>().into(), 'ERC721: invalid token ID');
         assert(!owner.is_zero(), 'ERC721: invalid token ID');
         owner
     }
