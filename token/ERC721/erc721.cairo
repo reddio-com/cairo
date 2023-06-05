@@ -9,6 +9,8 @@ mod erc721 {
     // felt to int. eg, 1.into()
     use traits::Into;
     use zeroable::Zeroable;
+    use traits::TryInto;
+    use option::OptionTrait;
 
     struct Storage {
         name: felt252,
@@ -158,9 +160,7 @@ mod erc721 {
     fn token_uri(token_id: u256) -> felt252 {
         _require_minted(token_id);
         let base_uri = _base_uri();
-        // base_uri + felt(token_id)
-        // considering how felt and u256 can be concatted.
-        base_uri + ''
+        base_uri + token_id.try_into().unwrap()
     }
 
     #[view]
