@@ -40,6 +40,6 @@ To use the `Cairo CLI`, we need to install Rust and clone the Cairo repo.
 2. Use the following command to compile the Cairo contract into a Sierra ContractClass。 Replace `/path/to/input.cairo` with the contract file directory, and `/path/to/output.json` with the directory of the compiled output file.:
 
     ```shell
-    cargo run --bin starknet-compile -- /path/to/input.cairo /path/to/output.json
+    cargo run --bin starknet-compile -- --single-file /path/to/input.cairo /path/to/output.json
     ```
 
