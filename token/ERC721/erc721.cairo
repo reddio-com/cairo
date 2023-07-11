@@ -4,14 +4,15 @@ use starknet::ContractAddress;
 trait IERC721<TContractState> {
     fn get_name(self: @TContractState) -> felt252;
     fn get_symbol(self: @TContractState) -> felt252;
-    fn token_uri(ref self: TContractState, token_id: u256) -> felt252;
+    fn token_uri(self: @TContractState, token_id: u256) -> felt252;
     fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
-    // fn is_approved_for_all(
-    //     self: @TContractState, owner: ContractAddress, operator: ContractAddress
-    // ) -> bool;
+    fn is_approved_for_all(
+        self: @TContractState, owner: ContractAddress, operator: ContractAddress
+    ) -> bool;
 
-    // fn owner_of(ref self: TContractState, token_id: u256) -> ContractAddress;
-    // fn get_approved(ref self: TContractState, token_id: u256) -> ContractAddress;
+    fn owner_of(self: @TContractState, token_id: u256) -> ContractAddress;
+    fn get_approved(self: @TContractState, token_id: u256) -> ContractAddress;
+
     fn set_approval_for_all(
         ref self: TContractState, operator: ContractAddress, approved: bool
     );
@@ -38,7 +39,7 @@ mod ERC721 {
         owners: LegacyMap::<u256, ContractAddress>,
         balances: LegacyMap::<ContractAddress, u256>,
         token_approvals: LegacyMap::<u256, ContractAddress>,
-        // (owner, operator)
+        /// (owner, operator)
         operator_approvals: LegacyMap::<(ContractAddress, ContractAddress), bool>,
     }
 
@@ -89,31 +90,30 @@ mod ERC721 {
             self.balances.read(account)
         }
 
-        // fn is_approved_for_all(self: @ContractState, owner: ContractAddress, operator: ContractAddress) -> bool {
-        //     self.operator_approvals.read((owner, operator))
-        // }
-
-        fn transfer_from(ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256) {
-            assert(self._is_approved_or_owner(get_caller_address(), token_id), 'Caller is not owner or appvored');
-            self._transfer(from, to, token_id);
+        fn is_approved_for_all(self: @ContractState, owner: ContractAddress, operator: ContractAddress) -> bool {
+            self._is_approved_for_all(owner, operator)
         }
 
-        fn token_uri(ref self: ContractState, token_id: u256) -> felt252 {
+        fn token_uri(self: @ContractState, token_id: u256) -> felt252 {
             self._require_minted(token_id);
             let base_uri = self._base_uri();
             base_uri + token_id.try_into().unwrap()
         }
 
-        // fn owner_of(ref self: ContractState, token_id: u256) -> ContractAddress {
-        //     let owner = self._owner_of(token_id);
-        //     assert(!owner.is_zero(), 'ERC721: invalid token ID');
-        //     owner
-        // }
+        fn owner_of(self: @ContractState, token_id: u256) -> ContractAddress {
+            let owner = self._owner_of(token_id);
+            assert(!owner.is_zero(), 'ERC721: invalid token ID');
+            owner
+        }
 
-        // fn get_approved(ref self: ContractState, token_id: u256) -> ContractAddress {
-        //     self._require_minted(token_id);
-        //     self.token_approvals.read(token_id)
-        // }
+        fn get_approved(self: @ContractState, token_id: u256) -> ContractAddress {
+            self._get_approved(token_id)
+        }
+
+        fn transfer_from(ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256) {
+            assert(self._is_approved_or_owner(get_caller_address(), token_id), 'Caller is not owner or appvored');
+            self._transfer(from, to, token_id);
+        }
 
         fn set_approval_for_all(ref self: ContractState, operator: ContractAddress, approved: bool) {
             self._set_approval_for_all(get_caller_address(), operator, approved);
@@ -125,7 +125,7 @@ mod ERC721 {
             // The max length of error msg is 31 or there's an error
             assert(to != owner, 'Approval to current owner');
             // || is not supported currently so we use | here
-            assert((get_caller_address() == owner) | self.is_approved_for_all(owner, get_caller_address()), 'Not token owner');
+            assert((get_caller_address() == owner) | self._is_approved_for_all(owner, get_caller_address()), 'Not token owner');
             self._approve(to, token_id);
         }
     }
@@ -140,53 +140,48 @@ mod ERC721 {
 
         fn _approve(ref self: ContractState, to: ContractAddress, token_id: u256) {
             self.token_approvals.write(token_id, to);
-            self.emit(Event::Approval(Approval {owner: self.owner_of(token_id), to, token_id }));
-            // Approval(self.owner_of(token_id), to, token_id);
-            // owner: ContractAddress, 
-            // to: ContractAddress, 
-            // token_id: u256
+            self.emit(Event::Approval(Approval {owner: self._owner_of(token_id), to, token_id }));
         }
 
-        fn owner_of(ref self: ContractState, token_id: u256) -> ContractAddress {
-            let owner = self._owner_of(token_id);
-            assert(!owner.is_zero(), 'ERC721: invalid token ID');
-            owner
-        }
-
-        fn _owner_of(ref self: ContractState, token_id: u256) -> ContractAddress {
-            self.owners.read(token_id)
-        }
-
-        fn _exists(ref self: ContractState, token_id: u256) -> bool {
-            !self._owner_of(token_id).is_zero()
-        }
-
-        fn _base_uri(ref self: ContractState) -> felt252 {
-            ''
-        }
-
-        fn _require_minted(ref self: ContractState, token_id: u256) {
-            assert(self._exists(token_id), 'ERC721: invalid token ID');
-        }
-
-        fn is_approved_for_all(self: @ContractState, owner: ContractAddress, operator: ContractAddress) -> bool {
+        fn _is_approved_for_all(self: @ContractState, owner: ContractAddress, operator: ContractAddress) -> bool {
             self.operator_approvals.read((owner, operator))
         }
 
-        fn _is_approved_or_owner(ref self: ContractState, spender: ContractAddress, token_id: u256) -> bool {
+        fn _owner_of(self: @ContractState, token_id: u256) -> ContractAddress {
+            self.owners.read(token_id)
+        }
+
+        fn _exists(self: @ContractState, token_id: u256) -> bool {
+            !self._owner_of(token_id).is_zero()
+        }
+
+        fn _base_uri(self: @ContractState) -> felt252 {
+            ''
+        }
+
+        fn _get_approved(self: @ContractState, token_id: u256) -> ContractAddress {
+            self._require_minted(token_id);
+            self.token_approvals.read(token_id)
+        }
+
+        fn _require_minted(self: @ContractState, token_id: u256) {
+            assert(self._exists(token_id), 'ERC721: invalid token ID');
+        }
+
+        fn _is_approved_or_owner(self: @ContractState, spender: ContractAddress, token_id: u256) -> bool {
             let owner = self.owners.read(token_id);
             // || is not supported currently so we use | here
             (spender == owner)
-                | self.is_approved_for_all(owner, spender) 
-                | (self.get_approved(token_id) == spender)
+                | self._is_approved_for_all(owner, spender) 
+                | (self._get_approved(token_id) == spender)
         }
 
         fn _transfer(ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256) {
-            assert(from == self.owner_of(token_id), 'Transfer from incorrect owner');
+            assert(from == self._owner_of(token_id), 'Transfer from incorrect owner');
             assert(!to.is_zero(), 'ERC721: transfer to 0');
 
             self._beforeTokenTransfer(from, to, token_id, 1.into());
-            assert(from == self.owner_of(token_id), 'Transfer from incorrect owner');
+            assert(from == self._owner_of(token_id), 'Transfer from incorrect owner');
 
             self.token_approvals.write(token_id, contract_address_const::<0>());
 
@@ -198,11 +193,6 @@ mod ERC721 {
             self.emit(Event::Transfer(Transfer { from, to, token_id }));
 
             self._afterTokenTransfer(from, to, token_id, 1.into());
-        }
-
-        fn get_approved(ref self: ContractState, token_id: u256) -> ContractAddress {
-            self._require_minted(token_id);
-            self.token_approvals.read(token_id)
         }
 
         fn _mint(ref self: ContractState, to: ContractAddress, token_id: u256) {
@@ -225,14 +215,13 @@ mod ERC721 {
 
     
         fn _burn(ref self: ContractState, token_id: u256) {
-            let owner = self.owner_of(token_id);
+            let owner = self._owner_of(token_id);
             self._beforeTokenTransfer(owner, contract_address_const::<0>(), token_id, 1.into());
-            let owner = self.owner_of(token_id);
+            let owner = self._owner_of(token_id);
             self.token_approvals.write(token_id, contract_address_const::<0>());
 
             self.balances.write(owner, self.balances.read(owner) - 1.into());
             self.owners.write(token_id, contract_address_const::<0>());
-            // Transfer(owner, contract_address_const::<0>(), token_id);
             self.emit(Event::Transfer(Transfer {
                 from: owner,
                 to: contract_address_const::<0>(),
