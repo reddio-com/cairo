@@ -30,7 +30,14 @@ mod ERC721 {
     use traits::Into;
     use zeroable::Zeroable;
     use traits::TryInto;
+    use array::SpanTrait;
+    use array::ArrayTrait;
+    use array::ArrayTCloneImpl;
     use option::OptionTrait;
+
+    use super::super::erc721_receiver::ERC721Receiver;
+    use super::super::erc721_receiver::ERC721ReceiverTrait;
+
 
     #[storage]
     struct Storage {
@@ -130,6 +137,35 @@ mod ERC721 {
         }
     }
 
+    #[external(v0)]
+    fn safe_transfer_from(
+        ref self: ContractState,
+        from: ContractAddress,
+        to: ContractAddress,
+        token_id: u256
+    ) {
+        assert(self._is_approved_or_owner(get_caller_address(), token_id), 
+            'caller is not owner | approved');
+        self._safe_transfer(from, to, token_id, ArrayTrait::<felt252>::new().span());
+    }
+
+
+    /// looks like overloading is not supported currently
+    // fn safe_transfer_from(
+    //     ref self: ContractState,
+    //     from: ContractAddress,
+    //     to: ContractAddress,
+    //     token_id: u256,
+    //     _data: Span<felt252>
+    // ) {
+    //     assert(self._is_approved_or_owner(get_caller_address(), token_id), 
+    //         'caller is not owner | approved');
+    //     self._safe_transfer(from, to, token_id, _data);
+    // }
+
+    // function _safeMint(address to, uint256 tokenId)
+    
+
     #[generate_trait]
     impl StorageImpl of StorageTrait {
         fn _set_approval_for_all(ref self: ContractState, owner: ContractAddress, operator: ContractAddress, approved: bool) {
@@ -180,7 +216,7 @@ mod ERC721 {
             assert(from == self._owner_of(token_id), 'Transfer from incorrect owner');
             assert(!to.is_zero(), 'ERC721: transfer to 0');
 
-            self._beforeTokenTransfer(from, to, token_id, 1.into());
+            self._before_token_transfer(from, to, token_id, 1.into());
             assert(from == self._owner_of(token_id), 'Transfer from incorrect owner');
 
             self.token_approvals.write(token_id, contract_address_const::<0>());
@@ -192,13 +228,13 @@ mod ERC721 {
 
             self.emit(Event::Transfer(Transfer { from, to, token_id }));
 
-            self._afterTokenTransfer(from, to, token_id, 1.into());
+            self._after_token_transfer(from, to, token_id, 1.into());
         }
 
         fn _mint(ref self: ContractState, to: ContractAddress, token_id: u256) {
             assert(!to.is_zero(), 'ERC721: mint to 0');
             assert(!self._exists(token_id), 'ERC721: already minted');
-            self._beforeTokenTransfer(contract_address_const::<0>(), to, token_id, 1.into());
+            self._before_token_transfer(contract_address_const::<0>(), to, token_id, 1.into());
             assert(!self._exists(token_id), 'ERC721: already minted');
 
             self.balances.write(to, self.balances.read(to) + 1.into());
@@ -210,13 +246,13 @@ mod ERC721 {
                 token_id
             }));
 
-            self._afterTokenTransfer(contract_address_const::<0>(), to, token_id, 1.into());
+            self._after_token_transfer(contract_address_const::<0>(), to, token_id, 1.into());
         }
 
     
         fn _burn(ref self: ContractState, token_id: u256) {
             let owner = self._owner_of(token_id);
-            self._beforeTokenTransfer(owner, contract_address_const::<0>(), token_id, 1.into());
+            self._before_token_transfer(owner, contract_address_const::<0>(), token_id, 1.into());
             let owner = self._owner_of(token_id);
             self.token_approvals.write(token_id, contract_address_const::<0>());
 
@@ -228,10 +264,56 @@ mod ERC721 {
                 token_id
             }));
 
-            self._afterTokenTransfer(owner, contract_address_const::<0>(), token_id, 1.into());
+            self._after_token_transfer(owner, contract_address_const::<0>(), token_id, 1.into());
         }
 
-        fn _beforeTokenTransfer(
+        fn _safe_mint(
+            ref self: ContractState, 
+            to: ContractAddress, 
+            token_id: u256
+        ) {
+            self._mint(to, token_id);
+            assert(self._check_on_ERC721_received(contract_address_const::<0>(), to, token_id, ArrayTrait::<felt252>::new().span()), 
+                'transfer to non ERC721Receiver');
+        }
+
+        /// looks like overloading is not supported currently
+        // fn _safe_mint(
+        //     ref self: ContractState, 
+        //     to: ContractAddress, 
+        //     token_id: u256, 
+        //     _data: Span<felt252>
+        // ) {
+        //     self._mint(to, token_id);
+        //     assert(self._check_on_ERC721_received(contract_address_const::<0>(), to, token_id, _data), 
+        //         'transfer to non ERC721Receiver');
+        // }
+
+        fn _safe_transfer(
+            ref self: ContractState,
+            from: ContractAddress,
+            to: ContractAddress,
+            token_id: u256,
+            _data: Span<felt252>
+        ) {
+            self._transfer(from, to, token_id);
+            assert(self._check_on_ERC721_received(from, to, token_id, _data), 'transfer to non ERC721Receiver');
+        }
+
+        fn _check_on_ERC721_received(
+            ref self: ContractState,
+            from: ContractAddress, 
+            to: ContractAddress, 
+            token_id: u256, 
+            _data: Span<felt252>
+        ) -> bool {
+            ERC721Receiver { contract_address: to }.
+                on_erc721_received(get_caller_address(), from, token_id, _data);
+            // todo
+            true
+        }
+
+        fn _before_token_transfer(
             ref self: ContractState, 
             from: ContractAddress, 
             to: ContractAddress, 
@@ -239,7 +321,7 @@ mod ERC721 {
             batch_size: u256
         ) {}
 
-        fn _afterTokenTransfer(
+        fn _after_token_transfer(
             ref self: ContractState, 
             from: ContractAddress, 
             to: ContractAddress, 
