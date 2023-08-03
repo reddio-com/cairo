@@ -1,6 +1,8 @@
 # Reddio Cairo
 This is the Reddio Cairo repo which contains some Cairo templates.
 
+> Recommended: Scarb version is at `scarb` branch
+
 ## Compile & Build
 
 Since Cairo is still in the early stages of development, the tools are constantly updated. Here, we use the Cairo CLI (Command Line Interface) to compile contracts.
