@@ -1,5 +1,6 @@
 use starknet::ContractAddress;
 
+
 #[starknet::interface]
 trait IERC1155<TContractState> {
     fn balance_of(self: @TContractState, account: ContractAddress, id: u256) -> u256;
@@ -7,16 +8,14 @@ trait IERC1155<TContractState> {
     fn is_approved_for_all(self: @TContractState, account: ContractAddress, operator: ContractAddress) -> bool;
 
     fn set_approval_for_all(ref self: TContractState, operator: ContractAddress, approved: bool);
-    // Array<felt252> here is for bytes in Solidity
-    // source from:
-    // https://discord.com/channels/793094838509764618/1065544063245365288/1131447888568909854
+    // Span<felt252> here is for bytes in Solidity
     fn safe_transfer_from(
         ref self: TContractState,
         from: ContractAddress,
         to: ContractAddress,
         id: u256,
         amount: u256,
-        data: Array<felt252>
+        data: Span<felt252>
     );
     fn safe_batch_transfer_from(
         ref self: TContractState,
@@ -24,19 +23,23 @@ trait IERC1155<TContractState> {
         to: ContractAddress,
         ids: Array<u256>,
         amounts: Array<u256>,
-        data: Array<felt252>
+        data: Span<felt252>
     );
 }
 
 #[starknet::contract]
 mod erc_1155 {
     use clone::Clone;
+    use array::SpanTrait;
     use array::ArrayTrait;
     use array::ArrayTCloneImpl;
     use zeroable::Zeroable;
     use starknet::ContractAddress;
     use starknet::get_caller_address;
     use starknet::contract_address_const;
+
+    use super::super::erc1155_receiver::ERC1155Receiver;
+    use super::super::erc1155_receiver::ERC1155ReceiverTrait;
     
     #[storage]
     struct Storage {
@@ -135,7 +138,7 @@ mod erc_1155 {
             to: ContractAddress,
             id: u256,
             amount: u256,
-            data: Array<felt252>
+            data: Span<felt252>
         ) {
             assert((from == get_caller_address()) | (IERC1155impl::is_approved_for_all(@self, from, get_caller_address())),
                  'caller is not owner | approved');
@@ -147,7 +150,7 @@ mod erc_1155 {
             to: ContractAddress,
             ids: Array<u256>,
             amounts: Array<u256>,
-            data: Array<felt252>
+            data: Span<felt252>
         ) {
             assert(
                 (from == get_caller_address()) | (IERC1155impl::is_approved_for_all(@self, from, get_caller_address())), 
@@ -169,7 +172,7 @@ mod erc_1155 {
             to: ContractAddress,
             id: u256,
             amount: u256,
-            data: Array<felt252>
+            data: Span<felt252>
         ) {
             assert(!to.is_zero(), 'mint to the zero address');
             let operator = get_caller_address();
@@ -199,7 +202,7 @@ mod erc_1155 {
             to: ContractAddress, 
             ids: Array<u256>, 
             amounts: Array<u256>, 
-            data: Array<felt252>
+            data: Span<felt252>
         ) {
             assert(!to.is_zero(), 'mint to the zero address');
             assert(ids.len() == amounts.len(), 'length mismatch');
@@ -260,7 +263,7 @@ mod erc_1155 {
                 contract_address_const::<0>(),
                 self._as_singleton_array(id),
                 self._as_singleton_array(amount),
-                ArrayTrait::<felt252>::new(),
+                ArrayTrait::<felt252>::new().span()
             );
 
             let from_balance = self._balances.read((id, from));
@@ -288,7 +291,7 @@ mod erc_1155 {
                 contract_address_const::<0>(),
                 ids.clone(), 
                 amounts.clone(), 
-                ArrayTrait::<felt252>::new()
+                ArrayTrait::<felt252>::new().span()
             );
 
             let mut i: usize = 0;
@@ -324,7 +327,7 @@ mod erc_1155 {
             to: ContractAddress,
             id: u256,
             amount: u256,
-            data: Array<felt252>
+            data: Span<felt252>
         ) {
             assert(!to.is_zero(), 'transfer to the zero address');
             let operator = get_caller_address();
@@ -358,7 +361,7 @@ mod erc_1155 {
             to: ContractAddress,
             ids: Array<u256>,
             amounts: Array<u256>,
-            data: Array<felt252>
+            data: Span<felt252>
         ) {
             assert(ids.len() == amounts.len(), 'length mismatch');
             assert(!to.is_zero(), 'transfer to the zero address');
@@ -429,7 +432,7 @@ mod erc_1155 {
             to: ContractAddress,
             ids: Array<u256>,
             amounts: Array<u256>,
-            data: Array<felt252>,
+            data: Span<felt252>,
         ) {}
 
         fn _do_safe_transfer_acceptance_check(
@@ -439,8 +442,11 @@ mod erc_1155 {
             to: ContractAddress,
             id: u256,
             amount: u256,
-            data: Array<felt252>
-        ) {}
+            data: Span<felt252>
+        ) {
+            ERC1155Receiver { contract_address: to }.
+                on_erc1155_received(operator, from, id, amount, data);
+        }
 
         fn _do_safe_batch_transfer_acceptance_check(
             ref self: ContractState,
@@ -449,8 +455,11 @@ mod erc_1155 {
             to: ContractAddress,
             ids: Array<u256>,
             amounts: Array<u256>,
-            data: Array<felt252>
-        ) {}
+            data: Span<felt252>
+        ) {
+            ERC1155Receiver { contract_address: to }.
+                on_erc1155_batch_received(operator, from, ids, amounts, data);
+        }
 
         fn _as_singleton_array(self: @ContractState, element: u256) -> Array<u256> {
             let mut args = ArrayTrait::new();
