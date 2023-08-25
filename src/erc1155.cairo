@@ -130,7 +130,7 @@ mod erc_1155 {
         }
 
         fn set_approval_for_all(ref self: ContractState, operator: ContractAddress, approved: bool) {
-            self._set_approval_for_All(get_caller_address(), operator, approved)
+            self._set_approval_for_all(get_caller_address(), operator, approved)
         }
         fn safe_transfer_from(
             ref self: ContractState,
@@ -414,7 +414,7 @@ mod erc_1155 {
             self._uri.write(newuri);
         }
 
-        fn _set_approval_for_All(
+        fn _set_approval_for_all(
             ref self: ContractState,
             owner: ContractAddress,
             operator: ContractAddress,
