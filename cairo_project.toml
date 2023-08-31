@@ -1,2 +1,2 @@
 [crate_roots]
-reddio = "src"
+reddio_cairo = "src"

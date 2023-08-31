@@ -17,10 +17,11 @@ trait IERC20<TContractState> {
     fn decrease_allowance(
         ref self: TContractState, spender: ContractAddress, subtracted_value: u256
     );
+    fn mint(ref self: TContractState, recipient: ContractAddress, amount: u256);
 }
 
 #[starknet::contract]
-mod erc_20 {
+mod ERC20 {
     use zeroable::Zeroable;
     use starknet::get_caller_address;
     use starknet::contract_address_const;
@@ -56,29 +57,25 @@ mod erc_20 {
     }
 
     #[constructor]
-    fn constructor(
-        ref self: ContractState,
-        name_: felt252,
-        symbol_: felt252,
-        decimals_: u8,
-        initial_supply: u256,
-        recipient: ContractAddress
+    fn constructor(ref self: ContractState, name_: felt252, symbol_: felt252, decimals_: u8,// initial_supply: u128,
+    // recipient: ContractAddress
     ) {
         self.name.write(name_);
         self.symbol.write(symbol_);
         self.decimals.write(decimals_);
-        assert(!recipient.is_zero(), 'ERC20: mint to the 0 address');
-        self.total_supply.write(initial_supply);
-        self.balances.write(recipient, initial_supply);
-        self
-            .emit(
-                Event::Transfer(
-                    Transfer {
-                        from: contract_address_const::<0>(), to: recipient, value: initial_supply
-                    }
-                )
-            );
+    // assert(!recipient.is_zero(), 'ERC20: mint to the 0 address');
+    // self.total_supply.write(initial_supply);
+    // self.balances.write(recipient, initial_supply);
+    // self
+    //     .emit(
+    //         Event::Transfer(
+    //             Transfer {
+    //                 from: contract_address_const::<0>(), to: recipient, value: initial_supply
+    //             }
+    //         )
+    //     );
     }
+
 
     #[external(v0)]
     impl IERC20Impl of super::IERC20<ContractState> {
@@ -146,6 +143,19 @@ mod erc_20 {
             self
                 .approve_helper(
                     caller, spender, self.allowances.read((caller, spender)) - subtracted_value
+                );
+        }
+
+        fn mint(ref self: ContractState, recipient: ContractAddress, amount: u256) {
+            self.balances.write(recipient, self.balances.read(recipient) + amount);
+            self.total_supply.write(self.total_supply.read() + amount);
+            self
+                .emit(
+                    Event::Transfer(
+                        Transfer {
+                            from: contract_address_const::<0>(), to: recipient, value: amount
+                        }
+                    )
                 );
         }
     }

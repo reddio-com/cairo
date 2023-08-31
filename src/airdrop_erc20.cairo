@@ -3,16 +3,12 @@ use starknet::ContractAddress;
 #[starknet::interface]
 trait IERC20<TContractState> {
     fn transfer_from(
-        ref self: TContractState,
-        sender: ContractAddress, 
-        recipient: ContractAddress, 
-        amount: u256
+        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256
     );
 }
 
 #[starknet::contract]
 mod AirdropERC20 {
-
     use super::IERC20Dispatcher;
     use super::IERC20DispatcherTrait;
     use starknet::get_caller_address;
@@ -37,10 +33,7 @@ mod AirdropERC20 {
     }
 
     #[constructor]
-    fn constructor(
-        ref self: ContractState,
-        _owner: ContractAddress,
-    ) {
+    fn constructor(ref self: ContractState, _owner: ContractAddress,) {
         self.owner.write(_owner);
     }
 
@@ -55,11 +48,11 @@ mod AirdropERC20 {
         assert(self.owner.read() == get_caller_address(), 'Owner required');
         let len = amounts.len();
         assert(len == recipients.len(), 'length mismatch');
-        let token = IERC20Dispatcher {contract_address: token_address };
+        let token = IERC20Dispatcher { contract_address: token_address };
         let mut i: usize = 0;
         loop {
             if i >= len {
-                break();
+                break ();
             }
             token.transfer_from(token_owner, *recipients.at(i), *amounts.at(i));
             i += 1;
@@ -71,11 +64,6 @@ mod AirdropERC20 {
         assert(self.owner.read() == get_caller_address(), 'Owner required');
         let old_owner = self.owner.read();
         self.owner.write(new_owner);
-        self.emit(Event::OwnerChanged(
-            OwnerChanged {
-                old_owner,
-                new_owner
-            }
-        ));
+        self.emit(Event::OwnerChanged(OwnerChanged { old_owner, new_owner }));
     }
 }
