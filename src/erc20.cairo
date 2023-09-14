@@ -57,7 +57,11 @@ mod ERC20 {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, name_: felt252, symbol_: felt252, decimals_: u8,// initial_supply: u128,
+    fn constructor(
+        ref self: ContractState,
+        name_: felt252,
+        symbol_: felt252,
+        decimals_: u8, // initial_supply: u128,
     // recipient: ContractAddress
     ) {
         self.name.write(name_);

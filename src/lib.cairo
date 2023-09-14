@@ -5,6 +5,7 @@ mod erc721_receiver;
 mod ERC721;
 mod ERC20;
 mod airdrop_erc20;
+mod nft_stake;
 
 #[cfg(test)]
 mod tests;

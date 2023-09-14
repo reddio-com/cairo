@@ -98,7 +98,6 @@ fn test_transfer() {
 #[available_gas(2000000)]
 fn test_transfer_from() {
     let (caller, erc20_token, erc20_address) = setUp();
-    // 先 mint 给 alice, alice 授权 当前，当前调用 transferFrom
     let alice: ContractAddress = contract_address_const::<2>();
     let bob: ContractAddress = contract_address_const::<3>();
 
