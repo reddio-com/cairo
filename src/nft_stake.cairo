@@ -21,6 +21,26 @@ trait IERC721<TContractState> {
     );
 }
 
+#[starknet::interface]
+trait INFTStake<TContractState> {
+    fn get_rewards_per_unit_time(self: @TContractState) -> u256;
+    fn get_time_unit(self: @TContractState) -> u256;
+    fn initialize(
+        ref self: TContractState,
+        _reward_token: ContractAddress,
+        _staking_token: ContractAddress,
+        _time_unit: u256,
+        _rewards_per_unit_time: u256
+    );
+    fn deposit_reward_tokens(ref self: TContractState, _amount: u256);
+    fn withdraw_reward_tokens(ref self: TContractState, _amount: u256);
+    fn set_time_unit(ref self: TContractState, _time_unit: u256);
+    fn set_rewards_per_unit_time(ref self: TContractState, _rewards_per_unit_time: u256);
+    fn stake(ref self: TContractState, _token_ids: Array<u256>);
+    fn withdraw(ref self: TContractState, _token_ids: Array<u256>);
+    fn claim_rewards(ref self: TContractState);
+}
+
 #[starknet::contract]
 mod NFTStake {
     use core::clone::Clone;
@@ -41,7 +61,7 @@ mod NFTStake {
         reward_token: ContractAddress,
         reward_token_balance: u256,
         staking_token: ContractAddress,
-        // Storage arrays is not supported so we are using map and length instead
+        // Storage array is not supported so we use mapping and length here instead
         // uint256[] public indexedTokens;
         indexed_tokens: LegacyMap::<u256, u256>,
         indexed_tokens_length: u256,
@@ -125,108 +145,115 @@ mod NFTStake {
         tokenIds: Array<u256>,
     }
 
-
     #[external(v0)]
-    fn deposit_reward_tokens(ref self: ContractState, _amount: u256) {
-        // todo check role
+    impl INFTStakeImpl of super::INFTStake<ContractState> {
+        fn initialize(
+            ref self: ContractState,
+            _reward_token: ContractAddress,
+            _staking_token: ContractAddress,
+            _time_unit: u256,
+            _rewards_per_unit_time: u256
+        ) {
+            // todo init only once
+            self.reward_token.write(_reward_token);
+            self.staking_token.write(_staking_token);
+            self._set_staking_condition(_time_unit, _rewards_per_unit_time);
+        }
+        fn deposit_reward_tokens(ref self: ContractState, _amount: u256) {
+            // todo check role
 
-        let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
-        let balance_before = reward_token.balance_of(get_contract_address());
-        reward_token.transfer_from(get_caller_address(), get_contract_address(), _amount);
-        let actual_amount = reward_token.balance_of(get_contract_address()) - balance_before;
-        self.reward_token_balance.write(self.reward_token_balance.read() + actual_amount);
-        self
-            .emit(
-                Event::RewardTokensDepositedByAdmin(
-                    RewardTokensDepositedByAdmin { amount: actual_amount }
-                )
-            );
+            let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
+            let balance_before = reward_token.balance_of(get_contract_address());
+            reward_token.transfer_from(get_caller_address(), get_contract_address(), _amount);
+            let actual_amount = reward_token.balance_of(get_contract_address()) - balance_before;
+            self.reward_token_balance.write(self.reward_token_balance.read() + actual_amount);
+            self
+                .emit(
+                    Event::RewardTokensDepositedByAdmin(
+                        RewardTokensDepositedByAdmin { amount: actual_amount }
+                    )
+                );
+        }
+
+        fn withdraw_reward_tokens(ref self: ContractState, _amount: u256) {
+            // todo check role
+
+            let new_reward_token_balance = if _amount < self.reward_token_balance.read() {
+                self.reward_token_balance.read() - _amount
+            } else {
+                0
+            };
+
+            self.reward_token_balance.write(new_reward_token_balance);
+
+            let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
+            reward_token.transfer(get_caller_address(), _amount);
+
+            self
+                .emit(
+                    Event::RewardTokensWithdrawnByAdmin(
+                        RewardTokensWithdrawnByAdmin { amount: _amount }
+                    )
+                );
+        }
+
+        fn set_time_unit(ref self: ContractState, _time_unit: u256) {
+            assert(self._can_set_stake_conditions(), 'Not authorized');
+
+            let condition: StakingCondition = self
+                .staking_conditions
+                .read(self.next_condition_id.read() - 1);
+            assert(_time_unit != condition.timeUnit, 'Time-unit unchanged.');
+            self._set_staking_condition(_time_unit, condition.timeUnit);
+            self
+                .emit(
+                    Event::UpdatedTimeUnit(
+                        UpdatedTimeUnit { oldTimeUnit: condition.timeUnit, newTimeUnit: _time_unit }
+                    )
+                );
+        }
+
+        fn set_rewards_per_unit_time(ref self: ContractState, _rewards_per_unit_time: u256) {
+            assert(self._can_set_stake_conditions(), 'Not authorized');
+            let condition: StakingCondition = self
+                .staking_conditions
+                .read(self.next_condition_id.read() - 1);
+            assert(_rewards_per_unit_time != condition.rewardsPerUnitTime, 'Reward unchanged.');
+            self._set_staking_condition(condition.timeUnit, _rewards_per_unit_time);
+            self
+                .emit(
+                    Event::UpdatedRewardsPerUnitTime(
+                        UpdatedRewardsPerUnitTime {
+                            oldRewardsPerUnitTime: condition.rewardsPerUnitTime,
+                            newRewardsPerUnitTime: _rewards_per_unit_time
+                        }
+                    )
+                );
+        }
+
+        fn stake(ref self: ContractState, _token_ids: Array<u256>) {
+            // todo nonReentrant
+            self._stake(_token_ids);
+        }
+
+        fn withdraw(ref self: ContractState, _token_ids: Array<u256>) {
+            // todo nonReentrant
+            self._withdraw(_token_ids);
+        }
+
+        fn claim_rewards(ref self: ContractState) {
+            // todo nonReentrant
+            self._claim_rewards();
+        }
+
+        fn get_time_unit(self: @ContractState) -> u256 {
+            self.staking_conditions.read(self.next_condition_id.read() - 1).timeUnit
+        }
+
+        fn get_rewards_per_unit_time(self: @ContractState) -> u256 {
+            self.staking_conditions.read(self.next_condition_id.read() - 1).rewardsPerUnitTime
+        }
     }
-
-    #[external(v0)]
-    fn withdraw_reward_tokens(ref self: ContractState, _amount: u256) {
-        // todo check role
-
-        let new_reward_token_balance = if _amount < self.reward_token_balance.read() {
-            self.reward_token_balance.read() - _amount
-        } else {
-            0
-        };
-
-        self.reward_token_balance.write(new_reward_token_balance);
-
-        let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
-        reward_token.transfer(get_caller_address(), _amount);
-
-        self
-            .emit(
-                Event::RewardTokensWithdrawnByAdmin(
-                    RewardTokensWithdrawnByAdmin { amount: _amount }
-                )
-            );
-    }
-
-    #[external(v0)]
-    fn set_time_unit(ref self: ContractState, _time_unit: u256) {
-        assert(self._can_set_stake_conditions(), 'Not authorized');
-
-        let condition: StakingCondition = self
-            .staking_conditions
-            .read(self.next_condition_id.read() - 1);
-        assert(_time_unit != condition.timeUnit, 'Time-unit unchanged.');
-        self._set_staking_condition(_time_unit, condition.timeUnit);
-        self
-            .emit(
-                Event::UpdatedTimeUnit(
-                    UpdatedTimeUnit { oldTimeUnit: condition.timeUnit, newTimeUnit: _time_unit }
-                )
-            );
-    }
-
-    #[external(v0)]
-    fn set_rewards_per_unit_time(ref self: ContractState, _rewards_per_unit_time: u256) {
-        assert(self._can_set_stake_conditions(), 'Not authorized');
-        let condition: StakingCondition = self
-            .staking_conditions
-            .read(self.next_condition_id.read() - 1);
-        assert(_rewards_per_unit_time != condition.rewardsPerUnitTime, 'Reward unchanged.');
-        self._set_staking_condition(condition.timeUnit, _rewards_per_unit_time);
-        self
-            .emit(
-                Event::UpdatedRewardsPerUnitTime(
-                    UpdatedRewardsPerUnitTime {
-                        oldRewardsPerUnitTime: condition.rewardsPerUnitTime,
-                        newRewardsPerUnitTime: _rewards_per_unit_time
-                    }
-                )
-            );
-    }
-
-    fn stake(ref self: ContractState, _token_ids: Array<u256>) {
-        // todo nonReentrant
-        self._stake(_token_ids);
-    }
-
-    fn withdraw(ref self: ContractState, _token_ids: Array<u256>) {
-        // todo nonReentrant
-        self._withdraw(_token_ids);
-    }
-
-    fn claim_rewards(ref self: ContractState) {
-        // todo nonReentrant
-        self._claim_rewards();
-    }
-
-    #[external(v0)]
-    fn get_time_unit(self: @ContractState) -> u256 {
-        self.staking_conditions.read(self.next_condition_id.read() - 1).timeUnit
-    }
-
-    #[external(v0)]
-    fn get_rewards_per_unit_time(self: @ContractState) -> u256 {
-        self.staking_conditions.read(self.next_condition_id.read() - 1).rewardsPerUnitTime
-    }
-
 
     #[generate_trait]
     impl StorageImpl of StorageTrait {
@@ -253,15 +280,10 @@ mod NFTStake {
                         endTimestamp: 0
                     }
                 );
-            let mut last = self.staking_conditions.read(condition_id - 1);
-            // let temp = StakingCondition {
-            //     timeUnit: last.timeUnit,
-            //     rewardsPerUnitTime: last.rewardsPerUnitTime,
-            //     startTimestamp: last.startTimestamp,
-            //     endTimestamp: get_block_timestamp().into(),
-            // };
-            last.endTimestamp = get_block_timestamp().into();
+
             if (condition_id > 0) {
+                let mut last = self.staking_conditions.read(condition_id - 1);
+                last.endTimestamp = get_block_timestamp().into();
                 self.staking_conditions.write(condition_id - 1, last);
             }
         }
@@ -299,10 +321,14 @@ mod NFTStake {
                                 ))),
                     'Not owned or approved'
                 );
+
                 token
                     .transfer_from(
                         get_caller_address(), get_contract_address(), *_cloned_token_ids.at(i)
                     );
+
+                self.staker_address.write(*_cloned_token_ids.at(i), get_caller_address());
+
                 if !self.is_indexed.read(*_cloned_token_ids.at(i)) {
                     self.is_indexed.write(*_cloned_token_ids.at(i), true);
                     // indexed_tokens: LegacyMap::<u256, u256>,
@@ -312,6 +338,7 @@ mod NFTStake {
                         .write(self.indexed_tokens_length.read(), *_cloned_token_ids.at(i));
                     self.indexed_tokens_length.write(self.indexed_tokens_length.read() + 1);
                 };
+                i += 1;
             };
             let mut temp = self.stakers.read(get_caller_address());
             temp.amountStaked += len.into();
@@ -334,7 +361,6 @@ mod NFTStake {
 
             self._update_unclaimed_rewards_for_staker(self._stake_msg_sender());
             if _amount_staked == len.into() {
-                // let _stakers_array = self.stakers_array;
                 let _stakers_array_len = self.stakers_array_length.read();
                 let mut i = 0;
                 loop {
@@ -353,6 +379,7 @@ mod NFTStake {
                             .write(self.stakers_array_length.read(), contract_address_const::<0>());
                         break;
                     };
+                    i += 1;
                 };
             }
 
@@ -376,6 +403,7 @@ mod NFTStake {
                     .transfer_from(
                         get_contract_address(), get_caller_address(), *_cloned_token_ids.at(i)
                     );
+                i += 1;
             };
 
             self
@@ -404,7 +432,7 @@ mod NFTStake {
             let _staker_condition_id = staker.conditionIdOflastUpdate;
             let _next_condition_id = self.next_condition_id.read();
             let mut _rewards = 0;
-            let i = _staker_condition_id;
+            let mut i = _staker_condition_id;
             loop {
                 if i >= _next_condition_id {
                     break;
@@ -420,11 +448,12 @@ mod NFTStake {
                 } else {
                     get_block_timestamp().into()
                 };
-                // todo use try instead
+                // todo use try math instead
                 let rewards_product = (end_time - start_time)
                     * staker.amountStaked
                     * condition.rewardsPerUnitTime;
-                _rewards = _rewards + rewards_product / condition.timeUnit;
+                _rewards += rewards_product / condition.timeUnit;
+                i += 1;
             };
 
             _rewards
