@@ -142,7 +142,7 @@ mod ERC721 {
             // || is not supported currently so we use | here
             assert(
                 (get_caller_address() == owner)
-                    | self._is_approved_for_all(owner, get_caller_address()),
+                    || self._is_approved_for_all(owner, get_caller_address()),
                 'Not token owner'
             );
             self._approve(to, token_id);
@@ -231,8 +231,8 @@ mod ERC721 {
             let owner = self.owners.read(token_id);
             // || is not supported currently so we use | here
             (spender == owner)
-                | self._is_approved_for_all(owner, spender)
-                | (self._get_approved(token_id) == spender)
+                || self._is_approved_for_all(owner, spender)
+                || (self._get_approved(token_id) == spender)
         }
 
         fn _transfer(
