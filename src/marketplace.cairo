@@ -43,6 +43,10 @@ trait IMarketplace<TContractState> {
 trait IERC20<TContractState> {
     fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
     fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u256;
+    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256);
+    fn transfer_from(
+        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256
+    );
 }
 
 #[starknet::interface]
@@ -174,7 +178,7 @@ mod Marketplace {
         buyoutPricePerToken: u256,
         // 0 -> erc721, 1 -> erc1155
         tokenType: u256,
-        // todo reservePricePerToken tokenType listingType
+    // todo reservePricePerToken tokenType listingType
     }
 
 
@@ -205,13 +209,10 @@ mod Marketplace {
                 _startTime = currentTime;
             }
 
-            self.validate_ownership_and_approval(
-                tokenOwner,
-                assetContract,
-                tokenId,
-                tokenAmountToList,
-                tokenTypeOfListing
-            );
+            self
+                .validate_ownership_and_approval(
+                    tokenOwner, assetContract, tokenId, tokenAmountToList, tokenTypeOfListing
+                );
 
             let newListing = Listing {
                 listingId: listingId,
@@ -527,8 +528,8 @@ mod Marketplace {
             _currencyToUse: ContractAddress,
             _totalPayoutAmount: u256,
             _listing: Listing,
-        ) { 
-            // transfer
+        ) {
+            self.safe_transfer_ERC20(_currencyToUse, _payer, _payee, _totalPayoutAmount);
         }
 
         fn transfer_listing_tokens(
@@ -547,6 +548,25 @@ mod Marketplace {
             } else if _listing.tokenType == 0 {
                 let token = IERC721Dispatcher { contract_address: _listing.assetContract };
                 token.transfer_from(_from, _to, _listing.tokenId);
+            }
+        }
+
+        fn safe_transfer_ERC20(
+            ref self: ContractState,
+            _currency: ContractAddress,
+            _from: ContractAddress,
+            _to: ContractAddress,
+            _amount: u256,
+        ) {
+            if (_amount == 0) || (_from == _to) {
+                return;
+            }
+
+            let token = IERC20Dispatcher { contract_address: _currency };
+            if _from == get_contract_address() {
+                token.transfer(_to, _amount);
+            } else {
+                token.transfer_from(_from, _to, _amount);
             }
         }
     }
