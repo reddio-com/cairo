@@ -219,8 +219,8 @@ mod Marketplace {
                 tokenOwner: tokenOwner,
                 assetContract: assetContract,
                 tokenId: tokenId,
-                startTime: startTime,
-                endTime: startTime + secondsUntilEndTime,
+                startTime: _startTime,
+                endTime: _startTime + secondsUntilEndTime,
                 quantity: tokenAmountToList,
                 currency: currencyToAccept,
                 buyoutPricePerToken: buyoutPricePerToken,
@@ -318,6 +318,8 @@ mod Marketplace {
                 pricePerToken: 0,
                 expirationTimestamp: 0,
             };
+
+            self.offers.write((_listingId, _offeror), emptyOffer);
 
             self
                 .execute_sale(
