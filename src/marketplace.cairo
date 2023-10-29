@@ -37,6 +37,7 @@ trait IMarketplace<TContractState> {
         _pricePerToken: u256,
         _expirationTimestamp: u256
     );
+    fn get_total_listings(self: @TContractState) -> u256;
 }
 
 #[starknet::interface]
@@ -358,6 +359,10 @@ mod Marketplace {
                     targetListing.buyoutPricePerToken * _quantityToBuy,
                     _quantityToBuy
                 );
+        }
+
+        fn get_total_listings(self: @ContractState) -> u256 {
+            self.total_listings.read()
         }
     }
 
