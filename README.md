@@ -1,5 +1,5 @@
 # Reddio Cairo
-This is the Reddio Cairo repo which contains some Cairo templates.
+This is the Reddio Cairo repo which contains Cairo smart contract templates.
 
 ## Compile & Build
 
