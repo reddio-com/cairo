@@ -37,6 +37,16 @@ trait IMarketplace<TContractState> {
         _pricePerToken: u256,
         _expirationTimestamp: u256
     );
+    fn update_listing(
+        ref self: TContractState,
+        _listingId: u256,
+        _quantityToList: u256,
+        _reservePricePerToken: u256,
+        _buyoutPricePerToken: u256,
+        _currencyToAccept: ContractAddress,
+        _startTime: u256,
+        _secondsUntilEndTime: u256,
+    );
     fn get_total_listings(self: @TContractState) -> u256;
 }
 
@@ -86,6 +96,8 @@ mod Marketplace {
     use starknet::get_contract_address;
     use starknet::info::get_block_timestamp;
     use starknet::contract_address_const;
+    use starknet::syscalls::replace_class_syscall;
+    use starknet::ClassHash;
     use core::traits::Into;
 
     use super::IERC20Dispatcher;
@@ -98,6 +110,7 @@ mod Marketplace {
 
     #[storage]
     struct Storage {
+        operator: ContractAddress,
         total_listings: u256,
         listings: LegacyMap::<u256, Listing>,
         offers: LegacyMap::<(u256, ContractAddress), Offer>,
@@ -107,6 +120,7 @@ mod Marketplace {
     #[derive(Drop, starknet::Event)]
     enum Event {
         ListingAdded: ListingAdded,
+        ListingUpdated: ListingUpdated,
         ListingRemoved: ListingRemoved,
         NewOffer: NewOffer,
         NewSale: NewSale,
@@ -134,6 +148,13 @@ mod Marketplace {
         #[key]
         lister: ContractAddress,
         listing: Listing,
+    }
+    #[derive(Drop, starknet::Event)]
+    struct ListingUpdated {
+        #[key]
+        listingId: u256,
+        #[key]
+        listingCreator: ContractAddress,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -182,6 +203,16 @@ mod Marketplace {
     // todo reservePricePerToken tokenType listingType
     }
 
+    #[constructor]
+    fn constructor(ref self: ContractState,) {
+        self.operator.write(get_caller_address());
+    }
+
+    #[external(v0)]
+    fn upgrade(self: @ContractState, new_class_hash: ClassHash) {
+        assert(get_caller_address() == self.operator.read(), 'Operator required');
+        replace_class_syscall(new_class_hash);
+    }
 
     #[external(v0)]
     impl IMarketplaceImpl of super::IMarketplace<ContractState> {
@@ -241,6 +272,7 @@ mod Marketplace {
         }
 
         fn cancel_direct_listing(ref self: ContractState, _listingId: u256) {
+            self.only_listing_creator(_listingId);
             let targetListing = self.listings.read(_listingId);
             let empty_listing = Listing {
                 listingId: 0,
@@ -275,6 +307,7 @@ mod Marketplace {
             _pricePerToken: u256,
             _expirationTimestamp: u256
         ) {
+            self.only_existing_listing(_listingId);
             let targetListing = self.listings.read(_listingId);
             assert(
                 targetListing.endTime > get_block_timestamp().into()
@@ -303,6 +336,8 @@ mod Marketplace {
             _currency: ContractAddress,
             _pricePerToken: u256
         ) {
+            self.only_listing_creator(_listingId);
+            self.only_existing_listing(_listingId);
             let targetOffer = self.offers.read((_listingId, _offeror));
             let targetListing = self.listings.read(_listingId);
 
@@ -341,6 +376,7 @@ mod Marketplace {
             _currency: ContractAddress,
             _totalPrice: u256,
         ) {
+            self.only_existing_listing(_listingId);
             let targetListing = self.listings.read(_listingId);
             let payer = get_caller_address();
 
@@ -358,6 +394,73 @@ mod Marketplace {
                     targetListing.currency,
                     targetListing.buyoutPricePerToken * _quantityToBuy,
                     _quantityToBuy
+                );
+        }
+
+        fn update_listing(
+            ref self: ContractState,
+            _listingId: u256,
+            _quantityToList: u256,
+            _reservePricePerToken: u256,
+            _buyoutPricePerToken: u256,
+            _currencyToAccept: ContractAddress,
+            mut _startTime: u256,
+            _secondsUntilEndTime: u256,
+        ) {
+            self.only_listing_creator(_listingId);
+            let targetListing = self.listings.read(_listingId);
+            let safeNewQuantity = self.get_safe_quantity(targetListing.tokenType, _quantityToList);
+            assert(safeNewQuantity != 0, 'QUANTITY');
+
+            let timestamp: u256 = get_block_timestamp().into();
+            if (_startTime < timestamp) {
+                assert(timestamp - _startTime < 3600, 'ST');
+                _startTime = timestamp;
+            }
+            let newStartTime = if _startTime == 0 {
+                targetListing.startTime
+            } else {
+                _startTime
+            };
+            self
+                .listings
+                .write(
+                    _listingId,
+                    Listing {
+                        listingId: _listingId,
+                        tokenOwner: get_caller_address(),
+                        assetContract: targetListing.assetContract,
+                        tokenId: targetListing.tokenId,
+                        startTime: newStartTime,
+                        endTime: if _secondsUntilEndTime == 0 {
+                            targetListing.endTime
+                        } else {
+                            newStartTime + _secondsUntilEndTime
+                        },
+                        quantity: safeNewQuantity,
+                        currency: _currencyToAccept,
+                        buyoutPricePerToken: _buyoutPricePerToken,
+                        tokenType: targetListing.tokenType,
+                    }
+                );
+            if (targetListing.quantity != safeNewQuantity) {
+                self
+                    .validate_ownership_and_approval(
+                        targetListing.tokenOwner,
+                        targetListing.assetContract,
+                        targetListing.tokenId,
+                        safeNewQuantity,
+                        targetListing.tokenType
+                    );
+            }
+
+            self
+                .emit(
+                    Event::ListingUpdated(
+                        ListingUpdated {
+                            listingId: _listingId, listingCreator: targetListing.tokenOwner,
+                        }
+                    )
                 );
         }
 
@@ -575,6 +678,16 @@ mod Marketplace {
             } else {
                 token.transfer_from(_from, _to, _amount);
             }
+        }
+
+        fn only_listing_creator(self: @ContractState, _listingId: u256) {
+            assert(self.listings.read(_listingId).tokenOwner == get_caller_address(), '!OWNER');
+        }
+
+        fn only_existing_listing(self: @ContractState, _listingId: u256) {
+            assert(
+                self.listings.read(_listingId).assetContract != contract_address_const::<0>(), "DNE"
+            );
         }
     }
 }
