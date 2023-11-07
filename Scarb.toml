@@ -8,4 +8,14 @@ version = "0.1.0"
 # foo = { path = "vendor/foo" }
 starknet = ">=2.0.0"
 
+#[[target.starknet-contract]]
+
+[lib]
+
 [[target.starknet-contract]]
+allowed-libfuncs-list.name = "experimental"
+sierra = true
+casm = false
+
+[tool.fmt]
+sort-module-level-items = true
