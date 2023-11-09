@@ -5,8 +5,10 @@ This is the Reddio Cairo repo which contains Cairo smart contract templates.
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh
 ```
+For Windows, follow manual setup in the [Scarb documentation](https://docs.swmansion.com/scarb/download.html?ref=blog.reddio.com#windows).
 
-Check if Scarb is installed correctly:
+Restart the terminal and check if Scarb is installed correctly:
+
 ```bash
 scarb --version
 ```
