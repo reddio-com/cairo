@@ -131,7 +131,7 @@ This is because the class has been declared by someone else before and a class c
 Once the declaration is successful, Starkli displays the class hash declared. The class hash is needed for deploying contracts.
 
 ## Deploying contracts
-Once you obtain a class hash by declaring a class, it's possible to deploy instances of the class.
+Once you obtain a class hash by declaring a class, it's ready to deploy instances of the class.
 
 With Starkli, this is done with the `starkli deploy` command.
 
