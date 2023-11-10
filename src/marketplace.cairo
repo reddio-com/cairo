@@ -686,7 +686,7 @@ mod Marketplace {
 
         fn only_existing_listing(self: @ContractState, _listingId: u256) {
             assert(
-                self.listings.read(_listingId).assetContract != contract_address_const::<0>(), "DNE"
+                self.listings.read(_listingId).assetContract != contract_address_const::<0>(), 'DNE'
             );
         }
     }

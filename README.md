@@ -110,15 +110,15 @@ export STARKNET_ACCOUNT=/path/to/keystore
 export STARKNET_KEYSTORE=/path/to/account
 ```
 
-After `scarb build`, you will get the `*.sierra.json` file in the `target` directory, which we'll use to declare the contract class:
+After `scarb build`, you will get the `*.contract_class.json` file in the `target` directory(`*.sierra.json` for older version of Scarb), which we'll use to declare the contract class:
 
 ```bash
-starkli declare *.sierra.json
+starkli declare *.contract_class.json
 ```
 
 such as:
 ```bash
-starkli declare target/dev/reddio_cairo_Marketplace.sierra.json
+starkli declare target/dev/reddio_cairo_Marketplace.contract_class.json
 ```
 
 You may get an error:
