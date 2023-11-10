@@ -147,18 +147,18 @@ Note that string parameters should be cast to hexadecimal in CLI.
 
 ## Invoking contracts
 
-With Starkli, this is done with the `starkli invoke` command.
+With Starkli, this is done with the starkli invoke command.
 
-The basic format of a `starkli invoke` command is the following:
+The basic format of a starkli invoke command is the following:
 
 ```bash
 starkli invoke <ADDRESS> <SELECTOR> <ARGS>
 ```
 
-For example, to transfer `100 Wei` of the `ETH` token to the address `0x1234`, one can run:
+For example, to mint 1,000,000 tokens for ERC20 contract to 0x4e1f5590b0fc94f4ba6b563937ec652a9cbfc7b7372433fb4f1eaf2464a3de, you can run:
 
 ```bash
-starkli invoke 0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7 transfer 0x1234 100:u256
+starkli invoke 0x007dda0853091a7f359b17eeb5ea234c9a626da5f389837c4cbeba9ff88e5bb6 mint 0x4e1f5590b0fc94f4ba6b563937ec652a9cbfc7b7372433fb4f1eaf2464a3de u256:100000
 ```
 
 For more information about starkli, touch [here](https://book.starkli.rs/).
