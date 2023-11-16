@@ -145,7 +145,7 @@ mod NFTStake {
         tokenIds: Array<u256>,
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl INFTStakeImpl of super::INFTStake<ContractState> {
         fn initialize(
             ref self: ContractState,

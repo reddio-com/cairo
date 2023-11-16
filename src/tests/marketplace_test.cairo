@@ -390,7 +390,7 @@ fn test_offer_erc721() {
 }
 
 #[test]
-#[available_gas(8000000)]
+#[available_gas(10000000)]
 fn test_offer_deal_erc721() {
     let (
         caller,
@@ -486,7 +486,7 @@ fn test_offer_erc1155() {
 }
 
 #[test]
-#[available_gas(8000000)]
+#[available_gas(10000000)]
 fn test_offer_deal_erc1155() {
     let (
         caller,

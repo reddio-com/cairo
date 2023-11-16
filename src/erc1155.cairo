@@ -110,7 +110,7 @@ mod ERC1155 {
         self._set_uri(uri_);
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl IERC1155impl of super::IERC1155<ContractState> {
         fn balance_of(self: @ContractState, account: ContractAddress, id: u256) -> u256 {
             assert(!account.is_zero(), 'query for the zero address');
@@ -154,7 +154,7 @@ mod ERC1155 {
         ) {
             assert(
                 (from == get_caller_address())
-                    | (IERC1155impl::is_approved_for_all(@self, from, get_caller_address())),
+                    || (IERC1155impl::is_approved_for_all(@self, from, get_caller_address())),
                 'caller is not owner | approved'
             );
             self._safe_transfer_from(from, to, id, amount, data);
@@ -169,7 +169,7 @@ mod ERC1155 {
         ) {
             assert(
                 (from == get_caller_address())
-                    | (IERC1155impl::is_approved_for_all(@self, from, get_caller_address())),
+                    || (IERC1155impl::is_approved_for_all(@self, from, get_caller_address())),
                 'caller is not owner | approved'
             );
             self._safe_batch_transfer_from(from, to, ids, amounts, data);

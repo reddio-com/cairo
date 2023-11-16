@@ -97,7 +97,7 @@ mod Marketplace {
     use starknet::info::get_block_timestamp;
     use starknet::contract_address_const;
     use starknet::syscalls::replace_class_syscall;
-    use starknet::ClassHash;
+    use starknet::class_hash::ClassHash;
     use core::traits::Into;
 
     use super::IERC20Dispatcher;
@@ -106,6 +106,9 @@ mod Marketplace {
     use super::IERC721DispatcherTrait;
     use super::IERC1155Dispatcher;
     use super::IERC1155DispatcherTrait;
+
+    const ERC721: u256 = 0;
+    const ERC1155: u256 = 1;
 
 
     #[storage]
@@ -210,11 +213,12 @@ mod Marketplace {
 
     #[external(v0)]
     fn upgrade(self: @ContractState, new_class_hash: ClassHash) {
+        assert(!new_class_hash.is_zero(), 'Class hash cannot be zero');
         assert(get_caller_address() == self.operator.read(), 'Operator required');
         replace_class_syscall(new_class_hash);
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl IMarketplaceImpl of super::IMarketplace<ContractState> {
         fn create_listing(
             ref self: ContractState,
@@ -285,6 +289,7 @@ mod Marketplace {
                 currency: contract_address_const::<0>(),
                 buyoutPricePerToken: 0,
                 // 0 -> erc721, 1 -> erc1155
+                // make to default here
                 tokenType: 0,
             };
             self.listings.write(_listingId, empty_listing);
@@ -477,7 +482,7 @@ mod Marketplace {
             if _quantityToCheck == 0 {
                 0
             } else {
-                if _tokenType == 0 {
+                if _tokenType == ERC721 {
                     1
                 } else {
                     _quantityToCheck
@@ -495,11 +500,11 @@ mod Marketplace {
         ) {
             let market = get_contract_address();
             let mut isValid: bool = false;
-            if (_tokenType == 1) {
+            if (_tokenType == ERC1155) {
                 let token = IERC1155Dispatcher { contract_address: _assetContract };
                 isValid = token.balance_of(_tokenOwner, _tokenId) >= _quantity
                     && token.is_approved_for_all(_tokenOwner, market);
-            } else if (_tokenType == 0) {
+            } else if (_tokenType == ERC721) {
                 let token = IERC721Dispatcher { contract_address: _assetContract };
                 isValid = token.owner_of(_tokenId) == _tokenOwner
                     && token.get_approved(_tokenId) == market
@@ -649,13 +654,13 @@ mod Marketplace {
             _quantity: u256,
             _listing: Listing,
         ) {
-            if _listing.tokenType == 1 {
+            if _listing.tokenType == ERC1155 {
                 let token = IERC1155Dispatcher { contract_address: _listing.assetContract };
                 token
                     .safe_transfer_from(
                         _from, _to, _listing.tokenId, _quantity, ArrayTrait::<felt252>::new().span()
                     );
-            } else if _listing.tokenType == 0 {
+            } else if _listing.tokenType == ERC721 {
                 let token = IERC721Dispatcher { contract_address: _listing.assetContract };
                 token.transfer_from(_from, _to, _listing.tokenId);
             }

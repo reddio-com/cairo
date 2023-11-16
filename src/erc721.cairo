@@ -81,7 +81,7 @@ mod ERC721 {
         self.symbol.write(_symbol);
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl IERC721Impl of super::IERC721<ContractState> {
         fn get_name(self: @ContractState) -> felt252 {
             self.name.read()
@@ -139,7 +139,6 @@ mod ERC721 {
             // Unlike Solidity, require is not supported, only assert can be used
             // The max length of error msg is 31 or there's an error
             assert(to != owner, 'Approval to current owner');
-            // || is not supported currently so we use | here
             assert(
                 (get_caller_address() == owner)
                     || self._is_approved_for_all(owner, get_caller_address()),
@@ -229,7 +228,6 @@ mod ERC721 {
             self: @ContractState, spender: ContractAddress, token_id: u256
         ) -> bool {
             let owner = self.owners.read(token_id);
-            // || is not supported currently so we use | here
             (spender == owner)
                 || self._is_approved_for_all(owner, spender)
                 || (self._get_approved(token_id) == spender)
