@@ -1,6 +1,17 @@
 # Reddio Cairo
 This is the Reddio Cairo repo which contains Cairo smart contract templates.
 
+Here are the smart contracts provied so far on this [repo](https://github.com/reddio-com/cairo).
+
+| Name     | Description |
+|----------|-------------|
+|[Token](https://github.com/reddio-com/cairo/blob/scarb/src/erc20.cairo)|Create and mint ERC20 tokens.|
+|[Token Drop](https://github.com/reddio-com/cairo/blob/scarb/src/airdrop_erc20.cairo)|Distribute funds to multiple recipients.|
+|[NFT](https://github.com/reddio-com/cairo/blob/scarb/src/erc721.cairo)|Create and mint ERC721 token.|
+|[Edition](https://github.com/reddio-com/cairo/blob/scarb/src/erc1155.cairo)|Create editions of ERC1155 tokens.|
+|[NFT Stake](https://github.com/reddio-com/cairo/blob/scarb/src/nft_stake.cairo)|Stake ERC721 for ERC20 tokens as rewards.|
+|[NFT Marketplace](https://github.com/reddio-com/cairo/blob/scarb/src/marketplace.cairo)|Buy and sell ERC721/ERC1155 tokens with ERC20 tokens.|
+
 ## Install Scarb
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh
