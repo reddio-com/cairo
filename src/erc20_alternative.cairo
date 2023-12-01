@@ -1,10 +1,3 @@
-use starknet::ContractAddress;
-
-#[starknet::interface]
-trait IERC20Mint<TContractState> {
-    fn mint(ref self: TContractState, recipient: ContractAddress, amount: u256);
-}
-
 #[starknet::contract]
 mod ERC20 {
     use openzeppelin::token::erc20::ERC20Component;
@@ -39,13 +32,15 @@ mod ERC20 {
         ERC20Event: ERC20Component::Event
     }
 
-    #[constructor]
-    fn constructor(ref self: ContractState, name: felt252, symbol: felt252) {
-        self.erc20.initializer(name, symbol);
-    }
+    #[abi(per_item)]
+    #[generate_trait]
+    impl ERC20MintImpl of IERC20Mint {
+        #[constructor]
+        fn constructor(ref self: ContractState, name: felt252, symbol: felt252) {
+            self.erc20.initializer(name, symbol);
+        }
 
-    #[abi(embed_v0)]
-    impl ERC20MintImpl of super::IERC20Mint<ContractState> {
+        #[external(v0)]
         fn mint(ref self: ContractState, recipient: ContractAddress, amount: u256) {
             self.erc20._mint(recipient, amount);
         }

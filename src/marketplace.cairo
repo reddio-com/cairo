@@ -51,28 +51,6 @@ trait IMarketplace<TContractState> {
 }
 
 #[starknet::interface]
-trait IERC20<TContractState> {
-    fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
-    fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u256;
-    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256);
-    fn transfer_from(
-        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256
-    );
-}
-
-#[starknet::interface]
-trait IERC721<TContractState> {
-    fn owner_of(self: @TContractState, token_id: u256) -> ContractAddress;
-    fn get_approved(self: @TContractState, token_id: u256) -> ContractAddress;
-    fn is_approved_for_all(
-        self: @TContractState, owner: ContractAddress, operator: ContractAddress
-    ) -> bool;
-    fn transfer_from(
-        ref self: TContractState, from: ContractAddress, to: ContractAddress, token_id: u256
-    );
-}
-
-#[starknet::interface]
 trait IERC1155<TContractState> {
     fn balance_of(self: @TContractState, account: ContractAddress, id: u256) -> u256;
     fn is_approved_for_all(
@@ -100,10 +78,10 @@ mod Marketplace {
     use starknet::class_hash::ClassHash;
     use core::traits::Into;
 
-    use super::IERC20Dispatcher;
-    use super::IERC20DispatcherTrait;
-    use super::IERC721Dispatcher;
-    use super::IERC721DispatcherTrait;
+    use openzeppelin::token::erc20::interface::ERC20ABIDispatcher;
+    use openzeppelin::token::erc20::interface::ERC20ABIDispatcherTrait;
+    use openzeppelin::token::erc721::interface::ERC721ABIDispatcher;
+    use openzeppelin::token::erc721::interface::ERC721ABIDispatcherTrait;
     use super::IERC1155Dispatcher;
     use super::IERC1155DispatcherTrait;
 
@@ -505,7 +483,7 @@ mod Marketplace {
                 isValid = token.balance_of(_tokenOwner, _tokenId) >= _quantity
                     && token.is_approved_for_all(_tokenOwner, market);
             } else if (_tokenType == ERC721) {
-                let token = IERC721Dispatcher { contract_address: _assetContract };
+                let token = ERC721ABIDispatcher { contract_address: _assetContract };
                 isValid = token.owner_of(_tokenId) == _tokenOwner
                     && token.get_approved(_tokenId) == market
                         || token.is_approved_for_all(_tokenOwner, market);
@@ -547,7 +525,7 @@ mod Marketplace {
             _currency: ContractAddress,
             _currencyAmountToCheckAgainst: u256
         ) {
-            let token = IERC20Dispatcher { contract_address: _currency };
+            let token = ERC20ABIDispatcher { contract_address: _currency };
             assert(
                 token.balance_of(_addrToCheck) >= _currencyAmountToCheckAgainst
                     && token
@@ -661,7 +639,7 @@ mod Marketplace {
                         _from, _to, _listing.tokenId, _quantity, ArrayTrait::<felt252>::new().span()
                     );
             } else if _listing.tokenType == ERC721 {
-                let token = IERC721Dispatcher { contract_address: _listing.assetContract };
+                let token = ERC721ABIDispatcher { contract_address: _listing.assetContract };
                 token.transfer_from(_from, _to, _listing.tokenId);
             }
         }
@@ -677,7 +655,7 @@ mod Marketplace {
                 return;
             }
 
-            let token = IERC20Dispatcher { contract_address: _currency };
+            let token = ERC20ABIDispatcher { contract_address: _currency };
             if _from == get_contract_address() {
                 token.transfer(_to, _amount);
             } else {

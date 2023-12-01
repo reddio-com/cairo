@@ -1,27 +1,6 @@
 use starknet::ContractAddress;
 
 #[starknet::interface]
-trait IERC20<TContractState> {
-    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256);
-    fn transfer_from(
-        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256
-    );
-    fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
-}
-
-#[starknet::interface]
-trait IERC721<TContractState> {
-    fn owner_of(self: @TContractState, token_id: u256) -> ContractAddress;
-    fn get_approved(self: @TContractState, token_id: u256) -> ContractAddress;
-    fn is_approved_for_all(
-        self: @TContractState, owner: ContractAddress, operator: ContractAddress
-    ) -> bool;
-    fn transfer_from(
-        ref self: TContractState, from: ContractAddress, to: ContractAddress, token_id: u256
-    );
-}
-
-#[starknet::interface]
 trait INFTStake<TContractState> {
     fn get_rewards_per_unit_time(self: @TContractState) -> u256;
     fn get_time_unit(self: @TContractState) -> u256;
@@ -43,12 +22,12 @@ trait INFTStake<TContractState> {
 
 #[starknet::contract]
 mod NFTStake {
-    use core::clone::Clone;
-    use super::IERC20Dispatcher;
-    use super::IERC20DispatcherTrait;
-    use super::IERC721Dispatcher;
-    use super::IERC721DispatcherTrait;
+    use openzeppelin::token::erc20::interface::ERC20ABIDispatcher;
+    use openzeppelin::token::erc20::interface::ERC20ABIDispatcherTrait;
+    use openzeppelin::token::erc721::interface::ERC721ABIDispatcher;
+    use openzeppelin::token::erc721::interface::ERC721ABIDispatcherTrait;
 
+    use core::clone::Clone;
     use core::traits::Into;
     use starknet::ContractAddress;
     use starknet::contract_address_const;
@@ -162,7 +141,7 @@ mod NFTStake {
         fn deposit_reward_tokens(ref self: ContractState, _amount: u256) {
             // todo check role
 
-            let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
+            let reward_token = ERC20ABIDispatcher { contract_address: self.reward_token.read() };
             let balance_before = reward_token.balance_of(get_contract_address());
             reward_token.transfer_from(get_caller_address(), get_contract_address(), _amount);
             let actual_amount = reward_token.balance_of(get_contract_address()) - balance_before;
@@ -186,7 +165,7 @@ mod NFTStake {
 
             self.reward_token_balance.write(new_reward_token_balance);
 
-            let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
+            let reward_token = ERC20ABIDispatcher { contract_address: self.reward_token.read() };
             reward_token.transfer(get_caller_address(), _amount);
 
             self
@@ -311,7 +290,7 @@ mod NFTStake {
                 if i >= len {
                     break;
                 }
-                let token = IERC721Dispatcher { contract_address: _staking_token };
+                let token = ERC721ABIDispatcher { contract_address: _staking_token };
                 assert(
                     (token.owner_of(*_cloned_token_ids.at(i)) == get_caller_address())
                         & ((token.get_approved(*_cloned_token_ids.at(i)) == get_contract_address())
@@ -319,7 +298,7 @@ mod NFTStake {
                                 .is_approved_for_all(
                                     get_caller_address(), get_contract_address()
                                 ))),
-                    'Not owned or approved'
+                    'Not owner or approved'
                 );
 
                 token
@@ -398,7 +377,7 @@ mod NFTStake {
                     'Not staker'
                 );
                 self.staker_address.write(*_cloned_token_ids.at(i), contract_address_const::<0>());
-                let token = IERC721Dispatcher { contract_address: _staking_token };
+                let token = ERC721ABIDispatcher { contract_address: _staking_token };
                 token
                     .transfer_from(
                         get_contract_address(), get_caller_address(), *_cloned_token_ids.at(i)
@@ -490,7 +469,7 @@ mod NFTStake {
         fn _mint_rewards(ref self: ContractState, _staker: ContractAddress, _rewards: u256) {
             assert(_rewards <= self.reward_token_balance.read(), 'Not enough reward tokens');
             self.reward_token_balance.write(self.reward_token_balance.read() - _rewards);
-            let reward_token = IERC20Dispatcher { contract_address: self.reward_token.read() };
+            let reward_token = ERC20ABIDispatcher { contract_address: self.reward_token.read() };
             reward_token.transfer(_staker, _rewards);
         }
     }
